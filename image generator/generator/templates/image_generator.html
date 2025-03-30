@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f9f9f9; /* Light background color */
+            color: #333; /* Dark text color for better readability */
+            margin: 0; /* Reset margin */
+        }
+        h1 {
+            text-align: center; /* Centered heading */
+            color: #4CAF50; /* Green color for the heading */
+        }
+        form {
+            display: flex; /* Use flexbox for layout */
+            justify-content: center; /* Center form elements */
+            margin-bottom: 20px; /* Space below the form */
+        }
+        input[type="text"] {
+            padding: 10px; /* Padding for input field */
+            border: 1px solid #ccc; /* Light border */
+            border-radius: 5px; /* Rounded corners */
+            width: 300px; /* Fixed width for input */
+            margin-right: 10px; /* Space between input and button */
+            transition: border 0.3s; /* Transition for focus effect */
+        }
+        input[type="text"]:focus {
+            border-color: #4CAF50; /* Change border color on focus */
+            outline: none; /* Remove outline */
+        }
+        button {
+            padding: 10px 15px; /* Padding for the button */
+            background-color: #4CAF50; /* Green background */
+            color: white; /* White text color */
+            border: none; /* Remove default border */
+            border-radius: 5px; /* Rounded corners */
+            cursor: pointer; /* Pointer cursor on hover */
+            transition: background-color 0.3s; /* Transition for hover effect */
+        }
+        button:hover {
+            background-color: #45a049; /* Darker green on hover */
+        }
+        #image-result-container {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column; /* Stack results vertically */
+            align-items: center; /* Center align results */
+        }
+        .image-card {
+            margin: 10px 0;
+            background: white; /* White background for image cards */
+            border: 1px solid #ddd; /* Light border */
+            border-radius: 5px; /* Rounded corners */
+            padding: 10px; /* Padding for image card */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+            width: 300px; /* Fixed width for image cards */
+            text-align: center; /* Center align text */
+        }
+        img {
+            max-width: 100%; /* Ensure images are responsive */
+            height: auto; /* Maintain aspect ratio */
+            border-radius: 5px; /* Rounded corners for images */
+        }
+        .error-message {
+            color: red; /* Style for error messages */
+            font-weight: bold; /* Bold error messages */
+        }
+        .loading {
+            display: none; /* Hidden by default */
+            text-align: center; /* Center align loading message */
+            font-style: italic; /* Italic loading message */
+        }
+        @media (max-width: 600px) {
+            input[type="text"] {
+                width: 100%; /* Full width for smaller screens */
+                margin-right: 0; /* Remove right margin */
+                margin-bottom: 10px; /* Space below input */
+            }
+            button {
+                width: 100%; /* Full width for buttons on smaller screens */
+            }
+            #image-result-container {
+                width: 100%; /* Full width for image result container */
+            }
+            .image-card {
+                width: auto; /* Auto width for image cards */
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Generator</h1>
+    <form id="image-form">
+        {% csrf_token %}
+        <label for="description" style="display:none;">Enter a description:</label> <!-- Hidden label for accessibility -->
+        <input type="text" name="description" id="description" required placeholder="Enter a description...">
+        <button type="submit">Generate Image</button>
+    </form>
+
+    <div id="image-result-container"></div>
+    <div id="all-images"></div>
+    <div class="loading" id="loading-indicator">Generating image, please wait...</div>
+
+    <script>
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        const form = document.getElementById('image-form');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        form.addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default form submission
+            const description = document.getElementById('description').value;
+            const csrftoken = getCookie('csrftoken'); // Get CSRF token
+
+            loadingIndicator.style.display = 'block'; // Show loading indicator
+
+            fetch('/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrftoken // Include CSRF token in headers
+                },
+                body: new URLSearchParams({
+                    'description': description
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingIndicator.style.display = 'none'; // Hide loading indicator
+                const imageContainer = document.getElementById('image-result-container');
+                imageContainer.innerHTML = ''; // Clear previous results
+
+                if (data.image_url) {
+                    imageContainer.innerHTML = `
+                        <h2>Generated Image</h2>
+                        <img src="${data.image_url}" alt="Generated Image">
+                        <a href="${data.image_url}" download>Download Image</a>
+                    `;
+
+                    // Add the generated image to the list of all images
+                    const allImagesContainer = document.getElementById('all-images');
+                    const newImageCard = document.createElement('div');
+                    newImageCard.classList.add('image-card');
+                    newImageCard.innerHTML = `
+                        <img src="${data.image_url}" alt="Generated Image">
+                        <a href="${data.image_url}" download>Download Image</a>
+                    `;
+                    allImagesContainer.appendChild(newImageCard);
+
+                    // Clear the input field
+                    document.getElementById('description').value = '';
+                } else if (data.error) {
+                    console.error('Error:', data.error);
+                    imageContainer.innerHTML = `<p class="error-message">Error generating image: ${data.error}</p>`;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                loadingIndicator.style.display = 'none'; // Hide loading indicator
+                document.getElementById('image-result-container').innerHTML = `<p class="error-message">An unexpected error occurred.</p>`;
+            });
+        });
+    </script>
+</body>
+</html>
